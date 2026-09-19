@@ -1,0 +1,285 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores Student/Admin profile data and access records",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Auth UID" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "name": { "type": "string", "description": "Full display name" },
+        "role": { "type": "string", "enum": ["student", "admin"], "description": "Access privileges" },
+        "purchasedPackages": { "type": "array", "description": "List of active packages (Basic, Standard, Premium)" },
+        "purchasedProjects": { "type": "array", "description": "Unlocked project IDs" },
+        "purchasedBooks": { "type": "array", "description": "List of purchased library book IDs" },
+        "enrolledCourses": { "type": "array", "description": "Enrolled course IDs" },
+        "completedLessons": { "type": "array", "description": "Lesson IDs completed by the user" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Profile creation timestamp" }
+      },
+      "required": ["uid", "email", "name", "role", "createdAt"]
+    },
+    "Package": {
+      "title": "Learning Package",
+      "description": "Details for available subscription tiers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Package identifier" },
+        "name": { "type": "string", "description": "Package name" },
+        "price": { "type": "integer", "description": "Price in NGN (Naira)" },
+        "includes": { "type": "array", "description": "Included features list" },
+        "description": { "type": "string", "description": "Description of tier benefits" }
+      },
+      "required": ["id", "name", "price", "includes"]
+    },
+    "Payment": {
+      "title": "Payment Log",
+      "description": "Records package, project, or library item purchases",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Receipt reference id" },
+        "userId": { "type": "string", "description": "User who paid" },
+        "userEmail": { "type": "string", "description": "Email of payer" },
+        "amount": { "type": "integer", "description": "Amount paid in NGN" },
+        "paymentMethod": { "type": "string", "enum": ["opay", "bank_transfer", "card", "paystack"], "description": "Payment handler" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed"], "description": "Transaction status" },
+        "itemType": { "type": "string", "enum": ["package", "project", "library", "course", "subscription"], "description": "Purchased item type" },
+        "itemId": { "type": "string", "description": "Database ID of purchased item" },
+        "reference": { "type": "string", "description": "Payment reference from gateway or receipt upload" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of payment" }
+      },
+      "required": ["id", "userId", "userEmail", "amount", "paymentMethod", "status", "itemType", "itemId", "reference", "createdAt"]
+    },
+    "Receipt": {
+      "title": "Payment Receipt",
+      "description": "Official electronic receipt issued upon payment verification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "receiptNumber": { "type": "string" },
+        "paymentId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "amount": { "type": "integer" },
+        "itemTitle": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "verificationCode": { "type": "string" },
+        "issuedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "receiptNumber", "paymentId", "userId", "amount", "itemTitle", "paymentMethod", "verificationCode", "issuedAt"]
+    },
+    "Subscription": {
+      "title": "User Subscription",
+      "description": "Recurring tuition subscription status record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "planId": { "type": "string" },
+        "planName": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "past_due", "cancelled", "expired"] },
+        "autoRenew": { "type": "boolean" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "planId", "planName", "status", "autoRenew", "startedAt", "expiresAt"]
+    },
+    "Project": {
+      "title": "Academic Project Support",
+      "description": "Academic research and undergraduate projects",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Project item identifier" },
+        "title": { "type": "string", "description": "Project title" },
+        "category": { "type": "string", "description": "Education, Chemistry, Physics, Biology, Engineering, Computer Science, Geology" },
+        "abstract": { "type": "string", "description": "Academic abstract summary" },
+        "preliminaryPages": { "type": "string", "description": "Table of Contents, Dedication, Acknowledgements preview" },
+        "chapterOnePreview": { "type": "string", "description": "Chapter one preview snippet" },
+        "fullProjectUrl": { "type": "string", "description": "Premium file location link" },
+        "price": { "type": "integer", "description": "Standard purchase price in NGN" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "category", "abstract", "preliminaryPages", "chapterOnePreview", "price"]
+    },
+    "Course": {
+      "title": "Hive Course",
+      "description": "Courses with interactive syllabus, lessons, assignments, quizzes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Course identifier" },
+        "title": { "type": "string", "description": "Course display title" },
+        "subject": { "type": "string", "description": "Specific subject name" },
+        "level": { "type": "string", "description": "Early Learning, Primary, Secondary, Exam Prep, Tertiary" },
+        "lessons": { "type": "array", "description": "List of lessons containing videos, notes" },
+        "quizzes": { "type": "array", "description": "Associated test and practice quizzes" },
+        "mockExaminations": { "type": "array", "description": "Exam-style prep test" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "subject", "level"]
+    },
+    "AssignmentSubmit": {
+      "title": "Assignment Submission",
+      "description": "Syllabus assignment solutions submitted by students",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Submission ID" },
+        "courseId": { "type": "string", "description": "Target course ID" },
+        "lessonId": { "type": "string", "description": "Target lesson identifier" },
+        "userId": { "type": "string", "description": "Student user ID" },
+        "userEmail": { "type": "string", "description": "Student email address" },
+        "submissionText": { "type": "string", "description": "Student answers or explanation" },
+        "fileUrl": { "type": "string", "description": "URL of uploaded submission document or image" },
+        "score": { "type": "integer", "description": "Graded score if evaluated" },
+        "graded": { "type": "boolean", "description": "Evaluation status" },
+        "submittedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "courseId", "lessonId", "userId", "userEmail", "submissionText", "graded", "submittedAt"]
+    },
+    "TestResult": {
+      "title": "Performance Result",
+      "description": "Logs details of quiz and mock examination answers and scores",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Result record id" },
+        "userId": { "type": "string", "description": "User identifier" },
+        "userEmail": { "type": "string", "description": "User email identifier" },
+        "itemId": { "type": "string", "description": "Course or lesson practice test ID" },
+        "itemType": { "type": "string", "enum": ["quiz", "mock_exam"], "description": "Type of exam" },
+        "score": { "type": "integer", "description": "Marks attained" },
+        "totalQuestions": { "type": "integer", "description": "Maximum marks possible" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "userEmail", "itemId", "itemType", "score", "totalQuestions", "createdAt"]
+    },
+    "Blog": {
+      "title": "Blog Article",
+      "description": "Educational articles, resources, study tips, or news blogs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique article ID" },
+        "title": { "type": "string", "description": "Headline title" },
+        "content": { "type": "string", "description": "Markdown body content of the article" },
+        "category": { "type": "string", "description": "Blog categories like Study Tips, JAMB Preparation, etc." },
+        "tags": { "type": "array", "description": "Keywords list" },
+        "author": { "type": "string", "description": "Name of the presenting advisor" },
+        "imageUrl": { "type": "string", "description": "Header image link" },
+        "featured": { "type": "boolean", "description": "Featured flag" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "content", "category", "author", "createdAt"]
+    },
+    "Comment": {
+      "title": "Blog Comment",
+      "description": "Comments and questions left on blog articles by students",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique comment ID" },
+        "blogId": { "type": "string", "description": "Parent blog post ID" },
+        "userId": { "type": "string", "description": "Payer author identifier" },
+        "userName": { "type": "string", "description": "Full name of comment author" },
+        "content": { "type": "string", "description": "Comment core text" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "blogId", "userId", "userName", "content", "createdAt"]
+    },
+    "ContactMessage": {
+      "title": "Contact Message Ticket",
+      "description": "Form messages submitted from the contact support page",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["unread", "replied"] }
+      },
+      "required": ["id", "name", "email", "subject", "message", "created_at", "status"]
+    },
+    "SupportChat": {
+      "title": "Live Support Chat Session",
+      "description": "Sessions for live student support consultations",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "email": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "ended"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["chatId", "userId", "userName", "email", "status", "updatedAt"]
+    },
+    "SupportChatMessage": {
+      "title": "Support Chat Message Item",
+      "description": "A single correspondence inside a live support dialogue",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string" },
+        "sender": { "type": "string", "enum": ["user", "assistant", "admin"] },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["messageId", "sender", "senderName", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/contact_messages/{messageId}": {
+      "schema": "ContactMessage",
+      "description": "Public support inquiry correspondence logs"
+    },
+    "/support_chats/{chatId}": {
+      "schema": "SupportChat",
+      "description": "Live student customer support dialogue records"
+    },
+    "/support_chats/{chatId}/messages/{messageId}": {
+      "schema": "SupportChatMessage",
+      "description": "Dialog turns inside a specific workspace live chat"
+    },
+    "/blogs/{blogId}": {
+      "schema": "Blog",
+      "description": "Educational articles, tutorials and TutorHive announcements"
+    },
+    "/blogs/{blogId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Reader comments and questions discussion boards on blog posts"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User registration profiles and records"
+    },
+    "/packages/{packageId}": {
+      "schema": "Package",
+      "description": "Standard business price modules and details"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Transaction registries mapping access logs"
+    },
+    "/receipts/{receiptId}": {
+      "schema": "Receipt",
+      "description": "Official electronic payment receipts issued to users"
+    },
+    "/subscriptions/{subscriptionId}": {
+      "schema": "Subscription",
+      "description": "Tuition package subscriptions and renewal status"
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Available undergraduate and master research projects"
+    },
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Complete eduction blocks, quizzes and video units"
+    },
+    "/assignments/{assignmentId}": {
+      "schema": "AssignmentSubmit",
+      "description": "Student homework solutions submissions registry"
+    },
+    "/results/{resultId}": {
+      "schema": "TestResult",
+      "description": "Quiz scores and exam answers transcripts log"
+    }
+  }
+}

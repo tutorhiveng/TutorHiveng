@@ -1,0 +1,294 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- SHARED HELPER FUNCTIONS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Simple id verification to prevent path poisoning
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Fast inline server-side evaluation of administrative credentials
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "hauwauusmankandarawa@gmail.com" ||
+        request.auth.token.email == 'admin@tutorhive.com'
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- ENTITY SCHEMA VALIDATIONS (Anti-Update-Gap) ---
+    
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'role', 'createdAt']) &&
+        data.keys().size() <= 12 &&
+        data.uid is string && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() <= 128 &&
+        data.name is string && data.name.size() <= 128 &&
+        data.role is string && (data.role == 'student' || data.role == 'admin');
+    }
+
+    function isValidPayment(data) {
+      return data.keys().hasAll(['id', 'userId', 'userEmail', 'amount', 'paymentMethod', 'status', 'itemType', 'itemId', 'reference', 'createdAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.userEmail is string && data.userEmail.size() <= 128 &&
+        data.amount is int && data.amount > 0 &&
+        data.paymentMethod is string && (data.paymentMethod == 'opay' || data.paymentMethod == 'bank_transfer' || data.paymentMethod == 'card' || data.paymentMethod == 'paystack') &&
+        data.status is string && (data.status == 'pending' || data.status == 'completed' || data.status == 'failed') &&
+        data.itemType is string && (data.itemType == 'package' || data.itemType == 'project' || data.itemType == 'library' || data.itemType == 'course' || data.itemType == 'subscription') &&
+        data.itemId is string && data.itemId.size() <= 128 &&
+        data.reference is string && data.reference.size() <= 200;
+    }
+
+    function isValidReceipt(data) {
+      return data.keys().hasAll(['id', 'receiptNumber', 'paymentId', 'userId', 'amount', 'itemTitle', 'paymentMethod', 'verificationCode', 'issuedAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.receiptNumber is string && data.receiptNumber.size() <= 128 &&
+        data.paymentId is string && data.paymentId.size() <= 128 &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.amount is int && data.amount > 0 &&
+        data.itemTitle is string && data.itemTitle.size() <= 256 &&
+        data.paymentMethod is string && data.paymentMethod.size() <= 64 &&
+        data.verificationCode is string && data.verificationCode.size() <= 128;
+    }
+
+    function isValidSubscription(data) {
+      return data.keys().hasAll(['id', 'userId', 'planId', 'planName', 'status', 'autoRenew', 'startedAt', 'expiresAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.planId is string && data.planId.size() <= 128 &&
+        data.planName is string && data.planName.size() <= 256 &&
+        data.status is string && (data.status == 'active' || data.status == 'past_due' || data.status == 'cancelled' || data.status == 'expired') &&
+        data.autoRenew is bool;
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['id', 'title', 'category', 'abstract', 'preliminaryPages', 'chapterOnePreview', 'price']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.title is string && data.title.size() <= 256 &&
+        data.category is string && data.category.size() <= 128 &&
+        data.abstract is string && data.abstract.size() <= 5000 &&
+        data.price is int && data.price >= 0;
+    }
+
+    function isValidCourse(data) {
+      return data.keys().hasAll(['id', 'title', 'subject', 'level']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.title is string && data.title.size() <= 256 &&
+        data.subject is string && data.subject.size() <= 128 &&
+        data.level is string && data.level.size() <= 128;
+    }
+
+    function isValidAssignmentSubmit(data) {
+      return data.keys().hasAll(['id', 'courseId', 'lessonId', 'userId', 'userEmail', 'submissionText', 'graded', 'submittedAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.courseId is string && data.courseId.size() <= 128 &&
+        data.lessonId is string && data.lessonId.size() <= 128 &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.userEmail is string && data.userEmail.size() <= 128 &&
+        data.submissionText is string && data.submissionText.size() <= 20000 &&
+        data.graded is bool;
+    }
+
+    function isValidTestResult(data) {
+      return data.keys().hasAll(['id', 'userId', 'userEmail', 'itemId', 'itemType', 'score', 'totalQuestions', 'createdAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.userEmail is string && data.userEmail.size() <= 128 &&
+        data.itemId is string && data.itemId.size() <= 128 &&
+        data.itemType is string && (data.itemType == 'quiz' || data.itemType == 'mock_exam') &&
+        data.score is int && data.score >= 0 &&
+        data.totalQuestions is int && data.totalQuestions > 0;
+    }
+
+    function isValidBlog(data) {
+      return data.keys().hasAll(['id', 'title', 'content', 'category', 'author', 'createdAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.title is string && data.title.size() <= 256 &&
+        data.content is string && data.content.size() <= 100000 &&
+        data.category is string && data.category.size() <= 128 &&
+        data.author is string && data.author.size() <= 128;
+    }
+
+    function isValidComment(data) {
+      return data.keys().hasAll(['id', 'blogId', 'userId', 'userName', 'content', 'createdAt']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.blogId is string && data.blogId.size() <= 128 &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.userName is string && data.userName.size() <= 128 &&
+        data.content is string && data.content.size() <= 5000;
+    }
+
+    function isValidContactMessage(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'subject', 'message', 'created_at', 'status']) &&
+        data.id is string && data.id.size() <= 128 &&
+        data.name is string && data.name.size() <= 128 &&
+        data.email is string && data.email.size() <= 128 &&
+        data.subject is string && data.subject.size() <= 256 &&
+        data.message is string && data.message.size() <= 20000 &&
+        data.status is string && (data.status == 'unread' || data.status == 'replied');
+    }
+
+    function isValidSupportChat(data) {
+      return data.keys().hasAll(['chatId', 'userId', 'userName', 'email', 'status', 'updatedAt']) &&
+        data.chatId is string && data.chatId.size() <= 128 &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.userName is string && data.userName.size() <= 128 &&
+        data.email is string && data.email.size() <= 128 &&
+        data.status is string && (data.status == 'active' || data.status == 'ended');
+    }
+
+    function isValidSupportChatMessage(data) {
+      return data.keys().hasAll(['messageId', 'sender', 'senderName', 'text', 'createdAt']) &&
+        data.messageId is string && data.messageId.size() <= 128 &&
+        data.sender is string && (data.sender == 'user' || data.sender == 'assistant' || data.sender == 'admin') &&
+        data.senderName is string && data.senderName.size() <= 128 &&
+        data.text is string && data.text.size() <= 10000;
+    }
+
+    // --- COLLECTIONS ---
+
+    // CONTACT MESSAGES COLLECTION
+    match /contact_messages/{messageId} {
+      allow read: if isAdmin();
+      allow create: if isValidContactMessage(incoming()) && incoming().created_at == request.time;
+      allow update, delete: if isAdmin();
+    }
+
+    // SUPPORT CHATS AND MESSAGES
+    match /support_chats/{chatId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid) || !isSignedIn();
+      allow create: if isValidSupportChat(incoming()) && incoming().updatedAt == request.time;
+      allow update: if (isAdmin() || (isSignedIn() && existing().userId == request.auth.uid) || !isSignedIn()) && isValidSupportChat(incoming()) && incoming().updatedAt == request.time;
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/support_chats/$(chatId)).data.userId == request.auth.uid) || !isSignedIn();
+        allow create: if isValidSupportChatMessage(incoming()) && incoming().createdAt == request.time;
+        allow update: if false; // support messages once created are immutable
+        allow delete: if isAdmin();
+      }
+    }
+
+    // USERS COLLECTION
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && (request.auth.uid == userId) && isValidUser(incoming()) && incoming().createdAt == request.time && incoming().role == 'student';
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && (
+        isAdmin() || (
+          // Protect critical credentials and role fields from client elevation
+          incoming().role == existing().role &&
+          incoming().uid == existing().uid &&
+          incoming().email == existing().email &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasAny(['name', 'purchasedPackages', 'purchasedProjects', 'purchasedBooks', 'enrolledCourses', 'completedLessons'])
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    // PACKAGES COLLECTION
+    match /packages/{packageId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // PAYMENTS COLLECTION
+    match /payments/{paymentId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (incoming().userId == request.auth.uid) && isValidPayment(incoming()) && incoming().createdAt == request.time;
+      allow update: if isAdmin() && isValidPayment(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // RECEIPTS COLLECTION
+    match /receipts/{receiptId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAdmin() && isValidReceipt(incoming()) && incoming().issuedAt == request.time;
+      allow update, delete: if isAdmin();
+    }
+
+    // SUBSCRIPTIONS COLLECTION
+    match /subscriptions/{subscriptionId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAdmin() && isValidSubscription(incoming()) && incoming().startedAt == request.time;
+      allow update: if isSignedIn() && (
+        isAdmin() || (
+          // User can toggle autoRenew
+          existing().userId == request.auth.uid &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['autoRenew']) &&
+          isValidSubscription(incoming())
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    // PROJECTS COLLECTION
+    match /projects/{projectId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidProject(incoming());
+    }
+
+    // COURSES COLLECTION
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidCourse(incoming());
+    }
+
+    // ASSIGNMENTS COLLECTION
+    match /assignments/{assignmentId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (incoming().userId == request.auth.uid) && isValidAssignmentSubmit(incoming()) && incoming().submittedAt == request.time;
+      allow update: if isSignedIn() && (
+        isAdmin() || (
+          // Student can edit submission text before grading
+          existing().userId == request.auth.uid && 
+          !existing().graded && 
+          incoming().diff(existing()).affectedKeys().hasOnly(['submissionText']) &&
+          isValidAssignmentSubmit(incoming())
+        )
+      );
+      allow delete: if isAdmin();
+    }
+
+    // RESULTS COLLECTION
+    match /results/{resultId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (incoming().userId == request.auth.uid) && isValidTestResult(incoming()) && incoming().createdAt == request.time;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // BLOGS AND BLOG COMMENTS COLLECTIONS
+    match /blogs/{blogId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidBlog(incoming()) && incoming().createdAt == request.time;
+      allow update: if isAdmin() && isValidBlog(incoming());
+      allow delete: if isAdmin();
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn() && (incoming().userId == request.auth.uid) && isValidComment(incoming()) && incoming().createdAt == request.time;
+        allow update: if false; // comments are immutable or editable under admin jurisdiction only
+        allow delete: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      }
+    }
+  }
+}

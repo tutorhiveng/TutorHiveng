@@ -1,0 +1,12 @@
+{
+  "name": "Remix: TutorHive",
+  "description": "TutorHive is a premium Nigerian EdTech platform offering live classes, recorded content, exam prep (JAMB, WAEC, NECO), digital research projects, electronic library services, and an interactive step-by-step AI Tutor Assistant.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
