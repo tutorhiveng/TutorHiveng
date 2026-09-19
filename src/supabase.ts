@@ -10,18 +10,24 @@ import {
 } from "./types";
 
 export const SUPABASE_PROJECT_ID = "nbasiawyntilkdfekfqo";
-export const SUPABASE_URL =
+export const SUPABASE_URL: string =
   ((import.meta as any).env?.VITE_SUPABASE_URL as string) || "https://nbasiawyntilkdfekfqo.supabase.co";
-export const SUPABASE_ANON_KEY =
+export const SUPABASE_ANON_KEY: string =
   ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string) ||
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5iYXNpYXd5bnRpbGtkZmVrZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2NzI1NzcsImV4cCI6MjEwNTI0ODU3N30.MakIa5Wz8tt1hmLaHeG8UcphK1zlbTp5xrF7sICA-3c";
 
-// Initialize the client-side Supabase client
+// Initialize the single client-side Supabase client
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    storage: typeof window !== "undefined" ? window.localStorage : undefined,
+  },
+  global: {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+    },
   },
 });
 
@@ -206,15 +212,61 @@ export async function signUpWithSupabase(
  * Sign In with Google OAuth via Supabase
  */
 export async function signInWithSupabaseGoogle() {
-  const redirectUrl = window.location.origin;
+  const redirectUrl = typeof window !== "undefined" ? window.location.origin : "https://nbasiawyntilkdfekfqo.supabase.co";
+
+  // Initiate OAuth flow with explicit apikey parameter to prevent "No API key found in request" errors
   const res = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
       redirectTo: redirectUrl,
+      skipBrowserRedirect: true,
+      queryParams: {
+        apikey: SUPABASE_ANON_KEY,
+        access_type: "offline",
+        prompt: "consent",
+      },
     },
   });
+
   if (res.error) {
     throw res.error;
+  }
+
+  const oauthUrl = res.data?.url;
+  if (!oauthUrl) {
+    throw new Error("Supabase did not return a valid Google OAuth authorization URL.");
+  }
+
+  // Pre-flight check the authorization endpoint to verify if Google OAuth provider is enabled in the Supabase Dashboard
+  try {
+    const probeRes = await fetch(oauthUrl, { method: "GET" });
+    if (!probeRes.ok) {
+      const errorText = await probeRes.text();
+      if (
+        errorText.includes("Unsupported provider") ||
+        errorText.includes("provider is not enabled")
+      ) {
+        throw new Error(
+          "Google Sign-In is not currently enabled in this Supabase project. To enable it, navigate to Supabase Dashboard -> Authentication -> Providers -> Google, enable the provider, and enter your Google OAuth Client ID & Client Secret. In the meantime, you can register or sign in with your email and password."
+        );
+      } else if (errorText.includes("No API key found") || errorText.includes("apikey")) {
+        throw new Error("Supabase API key is missing or invalid for Google OAuth.");
+      }
+    }
+  } catch (probeErr: any) {
+    // If we threw our detailed instruction error, bubble it up to the user UI
+    if (
+      probeErr.message?.includes("Google Sign-In is not currently enabled") ||
+      probeErr.message?.includes("Supabase API key")
+    ) {
+      throw probeErr;
+    }
+    // Network or CORS checks on cross-domain 302 redirects are expected, so continue to browser redirect
+  }
+
+  // Proceed with browser redirect to Google OAuth
+  if (typeof window !== "undefined") {
+    window.location.href = oauthUrl;
   }
   return res.data;
 }
@@ -223,7 +275,7 @@ export async function signInWithSupabaseGoogle() {
  * Reset Password via Supabase Auth
  */
 export async function resetSupabasePassword(email: string) {
-  const redirectUrl = window.location.origin;
+  const redirectUrl = typeof window !== "undefined" ? window.location.origin : "https://nbasiawyntilkdfekfqo.supabase.co";
   const res = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: redirectUrl,
   });
@@ -239,6 +291,18 @@ export async function resetSupabasePassword(email: string) {
 export async function signOutFromSupabase() {
   try {
     localStorage.removeItem(LOCAL_PROFILE_KEY);
+    // Clear user-specific cache keys
+    if (typeof window !== "undefined") {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith(LOCAL_PROFILE_KEY) || key.startsWith("sb-")) {
+          try {
+            localStorage.removeItem(key);
+          } catch {
+            // ignore
+          }
+        }
+      });
+    }
   } catch {
     // ignore
   }
@@ -253,6 +317,12 @@ export async function signOutFromSupabase() {
  */
 export async function getSupabaseCurrentUser(): Promise<SupabaseUser | null> {
   try {
+    // Check cached active session first for immediate restoration
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData?.session?.user) {
+      return sessionData.session.user;
+    }
+    // Query auth server if session is being validated
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -265,11 +335,11 @@ export async function getSupabaseCurrentUser(): Promise<SupabaseUser | null> {
 /**
  * Listen to Supabase auth state changes
  */
-export function onSupabaseAuthStateChange(callback: (user: SupabaseUser | null) => void) {
+export function onSupabaseAuthStateChange(callback: (user: SupabaseUser | null, session?: any) => void) {
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange(async (_event, session) => {
-    callback(session?.user || null);
+    callback(session?.user || null, session);
   });
   return () => {
     subscription.unsubscribe();
@@ -359,6 +429,8 @@ export async function getSupabaseUserProfile(
     email: defaultEmail,
     name: defaultName || "Student",
     role: initialRole,
+    specialization: initialRole === "tutor" ? "General Science & Mathematics" : undefined,
+    isVerifiedTutor: initialRole === "tutor",
     purchasedPackages: [],
     purchasedProjects: [],
     purchasedBooks: [],

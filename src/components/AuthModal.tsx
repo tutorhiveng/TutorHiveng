@@ -8,13 +8,13 @@ import {
   getSupabaseUserProfile,
   SUPABASE_PROJECT_ID,
 } from "../supabase";
-import { UserRole } from "../types";
+import { UserRole, UserProfile } from "../types";
 import { X, Mail, Lock, User, Chrome, Database, GraduationCap, BookOpen, ShieldCheck } from "lucide-react";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAuthSuccess: () => void;
+  onAuthSuccess: (profile?: UserProfile) => void;
 }
 
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
@@ -30,6 +30,25 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
 
   if (!isOpen) return null;
 
+  function parseAuthError(err: any): string {
+    const code = err?.code || "";
+    const msg = err?.message || "";
+
+    if (code === "email_not_confirmed" || msg.toLowerCase().includes("email not confirmed")) {
+      return "Your email address has not been confirmed yet. Please check your inbox for the Supabase confirmation link, or sign in once verified.";
+    }
+    if (code === "over_email_send_rate_limit" || msg.toLowerCase().includes("rate limit")) {
+      return "Supabase email rate limit reached for this hour. If you already registered, please switch to Sign In directly.";
+    }
+    if (code === "user_already_exists" || msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("user already exists")) {
+      return "An account with this email already exists in Supabase. Please sign in with your password.";
+    }
+    if (code === "invalid_credentials" || msg.toLowerCase().includes("invalid login credentials")) {
+      return "Invalid email address or password. Please double check your credentials and try again.";
+    }
+    return msg || "An authentication error occurred. Please try again.";
+  }
+
   async function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -39,15 +58,18 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
     try {
       if (tab === "login") {
         const data = await signInWithSupabase(email.trim(), password);
+        let profile: UserProfile | null = null;
         if (data.user) {
-          const profile = await getSupabaseUserProfile(
+          const userMetaRole = (data.user.user_metadata?.role as UserRole) || "student";
+          profile = await getSupabaseUserProfile(
             data.user.id,
             data.user.email || email.trim(),
-            data.user.user_metadata?.name || data.user.user_metadata?.full_name || "Student"
+            data.user.user_metadata?.name || data.user.user_metadata?.full_name || "Member",
+            userMetaRole
           );
           await syncUserProfileToSupabase(profile);
         }
-        onAuthSuccess();
+        onAuthSuccess(profile || undefined);
         onClose();
       } else if (tab === "register") {
         if (!fullName.trim()) {
@@ -59,10 +81,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
         const data = await signUpWithSupabase(email.trim(), password, fullName.trim(), role, specialization.trim());
         if (data.user) {
           let resolvedRole: UserRole = role;
-          if (email.toLowerCase().includes("admin") || email.toLowerCase().includes("director")) {
+          const lowerEmail = email.toLowerCase();
+          if (lowerEmail.includes("admin") || lowerEmail.includes("director") || lowerEmail === "hauwauusmankandarawa@gmail.com") {
             resolvedRole = "admin";
           }
-          const newProfile = {
+          const newProfile: UserProfile = {
             uid: data.user.id,
             email: data.user.email || email.trim(),
             name: fullName.trim(),
@@ -79,20 +102,22 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
           await syncUserProfileToSupabase(newProfile);
 
           if (!data.session) {
-            setMessage("Account created in Supabase! If email confirmation is enabled, please check your inbox; otherwise, you may sign in now.");
+            setMessage("Account created in Supabase! If email confirmation is required, please click the link sent to your inbox; otherwise, you may sign in below.");
             setTab("login");
             return;
           }
+
+          onAuthSuccess(newProfile);
+          onClose();
+          return;
         }
-        onAuthSuccess();
-        onClose();
       } else if (tab === "forgot") {
         await resetSupabasePassword(email.trim());
         setMessage("Supabase password recovery link dispatched to your email address.");
       }
     } catch (err: any) {
       console.error("Supabase Auth Error:", err);
-      setError(err.message || "An authentication error occurred.");
+      setError(parseAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -100,13 +125,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
 
   async function handleGoogleLogin() {
     setError("");
+    setMessage("");
     setLoading(true);
     try {
       await signInWithSupabaseGoogle();
-      // Browser will redirect to Google OAuth via Supabase
+      // Browser redirects to Google OAuth flow
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Failed Supabase Google Authentication.");
+      console.error("Google Auth error:", err);
+      setError(parseAuthError(err));
       setLoading(false);
     }
   }

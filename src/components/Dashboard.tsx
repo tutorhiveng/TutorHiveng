@@ -832,7 +832,21 @@ Format your output strictly as a single clean JSON block with NO surrounding tex
             </div>
             <div>
               <h3 className="text-xs font-mono font-bold text-black tracking-widest uppercase truncate max-w-[160px]">{userProfile.name}</h3>
-              <p className="text-[9px] text-[#D4AF37] font-mono tracking-wider uppercase font-bold">TUTORHIVE MEMBER</p>
+              {userProfile.role === "tutor" ? (
+                <p className="text-[9px] text-emerald-700 font-mono tracking-wider uppercase font-bold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block"></span>
+                  VERIFIED TUTOR
+                </p>
+              ) : isUserAdmin ? (
+                <p className="text-[9px] text-purple-700 font-mono tracking-wider uppercase font-bold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-600 inline-block"></span>
+                  ADMINISTRATOR
+                </p>
+              ) : (
+                <p className="text-[9px] text-[#D4AF37] font-mono tracking-wider uppercase font-bold">
+                  REGISTERED SCHOLAR
+                </p>
+              )}
             </div>
           </div>
 
@@ -899,7 +913,18 @@ Format your output strictly as a single clean JSON block with NO surrounding tex
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-black/10 pb-5">
                 <div>
                   <h2 className="text-xl sm:text-2xl font-serif font-black text-black">Welcome Back, {userProfile.name}!</h2>
-                  <p className="text-xs text-gray-450 mt-1">Review active subscription courses, assignments reviews, and practice performance grades.</p>
+                  {userProfile.role === "tutor" ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="px-2 py-0.5 bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-mono font-bold uppercase">
+                        Tutor Portal
+                      </span>
+                      <span className="text-xs text-gray-600 font-mono">
+                        {userProfile.specialization ? `Specialization: ${userProfile.specialization}` : "Assigned Instructor & Mentor"}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-450 mt-1">Review active subscription courses, assignments reviews, and practice performance grades.</p>
+                  )}
                 </div>
                 <div className="bg-[#FAF9F6] border border-black px-3.5 py-2.5 rounded-none text-xxs flex items-center gap-2 text-black font-mono font-bold tracking-widest uppercase">
                   <Calendar className="w-4 h-4 text-black" />

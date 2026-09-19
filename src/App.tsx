@@ -7,7 +7,7 @@ import {
   signOutFromSupabase,
   onSupabaseAuthStateChange,
 } from "./supabase";
-import { UserProfile, NavigationEntry } from "./types";
+import { UserProfile, UserRole, NavigationEntry } from "./types";
 
 // Inner components imports
 import Navbar from "./components/Navbar";
@@ -182,11 +182,11 @@ export default function App() {
       : undefined;
 
   // Reusable profile refresher powered by Supabase
-  async function refreshUserProfile() {
-    const user = await getSupabaseCurrentUser();
+  async function refreshUserProfile(incomingUser?: any) {
+    const user = incomingUser || (await getSupabaseCurrentUser());
     if (!user) {
       setUserProfile(null);
-      return;
+      return null;
     }
     try {
       const email = user.email || "";
@@ -194,20 +194,33 @@ export default function App() {
         user.user_metadata?.name ||
         user.user_metadata?.full_name ||
         user.email?.split("@")[0] ||
-        "Student";
-      const profile = await getSupabaseUserProfile(user.id, email, name);
+        "Member";
+      const userRole = (user.user_metadata?.role as UserRole) || "student";
+      const profile = await getSupabaseUserProfile(user.id, email, name, userRole);
       setUserProfile(profile);
+      return profile;
     } catch (err) {
-      console.error("Failed to refresh Supabase student profile", err);
+      console.error("Failed to refresh Supabase profile", err);
+      return null;
     }
   }
 
   useEffect(() => {
     refreshUserProfile();
 
-    const unsubscribe = onSupabaseAuthStateChange(async (user) => {
+    const unsubscribe = onSupabaseAuthStateChange(async (user, session) => {
       if (user) {
-        await refreshUserProfile();
+        await refreshUserProfile(user);
+        // If returning from Google OAuth or email confirmation with URL hash tokens
+        if (
+          typeof window !== "undefined" &&
+          (window.location.hash.includes("access_token") ||
+            window.location.hash.includes("type=") ||
+            window.location.search.includes("code="))
+        ) {
+          window.history.replaceState(null, "", window.location.pathname);
+          navigateTo("dashboard", "overview");
+        }
       } else {
         setUserProfile(null);
       }
@@ -406,7 +419,14 @@ export default function App() {
       <AuthModal
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
-        onAuthSuccess={refreshUserProfile}
+        onAuthSuccess={(profile) => {
+          if (profile) {
+            setUserProfile(profile);
+          } else {
+            refreshUserProfile();
+          }
+          navigateTo("dashboard", "overview");
+        }}
       />
       <SupportChatWidget userProfile={userProfile} />
     </div>
