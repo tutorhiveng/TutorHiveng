@@ -1160,7 +1160,14 @@ app.get("/api/admin/stats", (req, res) => {
 
 // Supabase backend proxy and health check endpoint
 app.get("/api/supabase/status", async (req, res) => {
-  const supabaseUrl = process.env.SUPABASE_URL || "https://nbasiawyntilkdfekfqo.supabase.co";
+  const rawUrl = process.env.SUPABASE_URL || "https://nbasiawyntilkdfekfqo.supabase.co";
+  const supabaseUrl = rawUrl
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\/rest\/v1\/?$/i, "")
+    .replace(/\/rest\/?$/i, "")
+    .replace(/\/auth\/v1\/?$/i, "")
+    .replace(/\/+$/, "") || "https://nbasiawyntilkdfekfqo.supabase.co";
   const supabaseKey =
     process.env.SUPABASE_ANON_KEY ||
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5iYXNpYXd5bnRpbGtkZmVrZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2NzI1NzcsImV4cCI6MjEwNTI0ODU3N30.MakIa5Wz8tt1hmLaHeG8UcphK1zlbTp5xrF7sICA-3c";

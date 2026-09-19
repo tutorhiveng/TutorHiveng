@@ -8,7 +8,13 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     define: {
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(
-        process.env.VITE_SUPABASE_URL || 'https://nbasiawyntilkdfekfqo.supabase.co'
+        (process.env.VITE_SUPABASE_URL || 'https://nbasiawyntilkdfekfqo.supabase.co')
+          .trim()
+          .replace(/\/+$/, '')
+          .replace(/\/rest\/v1\/?$/i, '')
+          .replace(/\/rest\/?$/i, '')
+          .replace(/\/auth\/v1\/?$/i, '')
+          .replace(/\/+$/, '')
       ),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(
         process.env.VITE_SUPABASE_ANON_KEY ||

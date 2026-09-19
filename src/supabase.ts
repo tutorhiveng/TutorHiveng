@@ -10,8 +10,26 @@ import {
 } from "./types";
 
 export const SUPABASE_PROJECT_ID = "nbasiawyntilkdfekfqo";
-export const SUPABASE_URL: string =
-  ((import.meta as any).env?.VITE_SUPABASE_URL as string) || "https://nbasiawyntilkdfekfqo.supabase.co";
+
+/**
+ * Sanitize Supabase Project URL to ensure no /rest/v1 or trailing slashes corrupt client routing
+ */
+export function sanitizeSupabaseUrl(rawUrl?: string): string {
+  if (!rawUrl || typeof rawUrl !== "string") {
+    return "https://nbasiawyntilkdfekfqo.supabase.co";
+  }
+  let url = rawUrl.trim();
+  url = url.replace(/\/+$/, "");
+  url = url.replace(/\/rest\/v1\/?$/i, "");
+  url = url.replace(/\/rest\/?$/i, "");
+  url = url.replace(/\/auth\/v1\/?$/i, "");
+  url = url.replace(/\/+$/, "");
+  return url || "https://nbasiawyntilkdfekfqo.supabase.co";
+}
+
+export const SUPABASE_URL: string = sanitizeSupabaseUrl(
+  ((import.meta as any).env?.VITE_SUPABASE_URL as string) || "https://nbasiawyntilkdfekfqo.supabase.co"
+);
 export const SUPABASE_ANON_KEY: string =
   ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string) ||
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5iYXNpYXd5bnRpbGtkZmVrZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2NzI1NzcsImV4cCI6MjEwNTI0ODU3N30.MakIa5Wz8tt1hmLaHeG8UcphK1zlbTp5xrF7sICA-3c";
@@ -212,19 +230,14 @@ export async function signUpWithSupabase(
  * Sign In with Google OAuth via Supabase
  */
 export async function signInWithSupabaseGoogle() {
-  const redirectUrl = typeof window !== "undefined" ? window.location.origin : "https://nbasiawyntilkdfekfqo.supabase.co";
+  const redirectUrl = typeof window !== "undefined" ? window.location.origin : SUPABASE_URL;
 
-  // Initiate OAuth flow with explicit apikey parameter to prevent "No API key found in request" errors
+  // Use the standard Supabase OAuth flow with clean base URL
   const res = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
       redirectTo: redirectUrl,
       skipBrowserRedirect: true,
-      queryParams: {
-        apikey: SUPABASE_ANON_KEY,
-        access_type: "offline",
-        prompt: "consent",
-      },
     },
   });
 
@@ -249,16 +262,11 @@ export async function signInWithSupabaseGoogle() {
         throw new Error(
           "Google Sign-In is not currently enabled in this Supabase project. To enable it, navigate to Supabase Dashboard -> Authentication -> Providers -> Google, enable the provider, and enter your Google OAuth Client ID & Client Secret. In the meantime, you can register or sign in with your email and password."
         );
-      } else if (errorText.includes("No API key found") || errorText.includes("apikey")) {
-        throw new Error("Supabase API key is missing or invalid for Google OAuth.");
       }
     }
   } catch (probeErr: any) {
     // If we threw our detailed instruction error, bubble it up to the user UI
-    if (
-      probeErr.message?.includes("Google Sign-In is not currently enabled") ||
-      probeErr.message?.includes("Supabase API key")
-    ) {
+    if (probeErr.message?.includes("Google Sign-In is not currently enabled")) {
       throw probeErr;
     }
     // Network or CORS checks on cross-domain 302 redirects are expected, so continue to browser redirect
@@ -275,7 +283,7 @@ export async function signInWithSupabaseGoogle() {
  * Reset Password via Supabase Auth
  */
 export async function resetSupabasePassword(email: string) {
-  const redirectUrl = typeof window !== "undefined" ? window.location.origin : "https://nbasiawyntilkdfekfqo.supabase.co";
+  const redirectUrl = typeof window !== "undefined" ? window.location.origin : SUPABASE_URL;
   const res = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: redirectUrl,
   });
@@ -463,9 +471,9 @@ export async function syncUserProfileToSupabase(profile: UserProfile): Promise<{
     const { error } = await supabase.from("profiles").upsert(
       {
         id: profile.uid,
-        email: profile.email,
-        display_name: profile.name,
-        role: profile.role,
+        email: profile.email || `${profile.uid}@user.tutorhive.ng`,
+        display_name: profile.name || "Member",
+        role: profile.role || "student",
         phone_number: profile.phone || null,
         avatar_url: profile.avatarUrl || null,
         bio: profile.bio || null,

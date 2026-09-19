@@ -1,10 +1,17 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
-import { getFirestore, doc, getDocFromServer } from "firebase/firestore";
+import { initializeFirestore, doc, getDocFromServer } from "firebase/firestore";
 import firebaseConfig from "../firebase-applet-config.json";
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+// Initialize Firestore using experimentalForceLongPolling to eliminate WebSocket / WebChannel streaming dropouts in iframe & sandboxed environments
+export const db = initializeFirestore(
+  app,
+  {
+    experimentalForceLongPolling: true,
+  },
+  firebaseConfig.firestoreDatabaseId
+); /* CRITICAL: The app will break without this line */
 export const auth = getAuth();
 export const googleProvider = new GoogleAuthProvider();
 
@@ -65,9 +72,16 @@ export function handleFirestoreError(
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, "test", "connection"));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("client is offline")) {
-      console.error("Please check your Firebase configuration or network.");
+  } catch (error: any) {
+    if (error?.code === "permission-denied") {
+      // Backend is reached and active
+      return;
+    }
+    if (
+      (error instanceof Error && error.message.includes("client is offline")) ||
+      error?.code === "unavailable"
+    ) {
+      console.warn("Firestore running in offline/long-polling mode or connection establishing.");
     }
   }
 }

@@ -82,7 +82,7 @@ export default function Courses({
         setCoursesLoading(false);
       },
       (err) => {
-        console.error("Failed to fetch custom courses:", err);
+        console.warn("Custom courses live sync notice (using standard educational catalog):", err?.message || err);
         setCoursesLoading(false);
       }
     );
