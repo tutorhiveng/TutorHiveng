@@ -180,7 +180,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /messages/{messageId} {
-        allow read: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/support_chats/$(chatId)).data.userId == request.auth.uid) || !isSignedIn();
+        allow read: if true;
         allow create: if isValidSupportChatMessage(incoming()) && incoming().createdAt == request.time;
         allow update: if false; // support messages once created are immutable
         allow delete: if isAdmin();

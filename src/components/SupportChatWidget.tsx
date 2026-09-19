@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { MessageSquare, X, Send, MessageCircle, Loader2, Sparkles, AlertCircle } from "lucide-react";
 import { db } from "../firebase";
 import { UserProfile, SupportChatMessage } from "../types";
-import { collection, doc, setDoc, onSnapshot, query, orderBy, serverTimestamp, addDoc, updateDoc } from "firebase/firestore";
+import { collection, doc, getDoc, setDoc, onSnapshot, query, orderBy, serverTimestamp, addDoc, updateDoc } from "firebase/firestore";
 
 interface SupportChatWidgetProps {
   userProfile: UserProfile | null;
@@ -36,13 +36,30 @@ export default function SupportChatWidget({ userProfile }: SupportChatWidgetProp
       try {
         const parsed = JSON.parse(savedSession);
         if (parsed.chatId) {
-          setChatId(parsed.chatId);
-          setName(parsed.name || "Guest");
-          setEmail(parsed.email || "");
-          setStatus("chatting");
+          // Verify chat exists in Firestore to avoid permission or missing document errors
+          getDoc(doc(db, "support_chats", parsed.chatId))
+            .then((docSnap) => {
+              if (docSnap.exists()) {
+                setChatId(parsed.chatId);
+                setName(parsed.name || "Guest");
+                setEmail(parsed.email || "");
+                setStatus("chatting");
+              } else {
+                // Stale or deleted session, remove from localStorage
+                localStorage.removeItem("tutorhive_chat_session");
+                setChatId("");
+                setStatus("idle");
+              }
+            })
+            .catch(() => {
+              localStorage.removeItem("tutorhive_chat_session");
+              setChatId("");
+              setStatus("idle");
+            });
         }
       } catch (err) {
         console.error("Stale session corrupt", err);
+        localStorage.removeItem("tutorhive_chat_session");
       }
     }
   }, []);
@@ -74,7 +91,11 @@ export default function SupportChatWidget({ userProfile }: SupportChatWidgetProp
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     }, (error) => {
-      console.error("Live support snapshot error:", error);
+      console.warn("Live support snapshot subscription ended or invalid:", error.message || error);
+      // If permissions or document access fails, gracefully clear stale session rather than unhandled exception
+      localStorage.removeItem("tutorhive_chat_session");
+      setStatus("idle");
+      setChatId("");
     });
 
     return () => unsubscribe();
